@@ -1,0 +1,75 @@
+version: 2.1
+
+orbs:
+  terraform: circleci/terraform@3.6.0
+
+parameters:
+  gcp-my-projects:
+    type: boolean
+    default: false
+  gcp-hub-project:
+    type: boolean
+    default: false
+
+jobs:
+  tf-credentials:
+    docker:
+      - image: cimg/base:2025.01
+    steps:
+      - checkout
+      - run:
+          command: |
+            echo "credentials \"app.terraform.io\" {token =
+            \"$GCP_TERRAFORM_SERVICE_KEY\"}" > /home/circleci/.terraformrc
+      - persist_to_workspace:
+          root: /home/circleci/
+          paths:
+            - .terraformrc
+
+workflows:
+  my-projects-infra:
+    when: << pipeline.parameters.gcp-my-projects >>
+    jobs:
+      - tf-credentials:
+          context: terraform
+          filters:
+            branches:
+              only: feature/create-circleci-configuration
+      - terraform/fmt:
+          checkout: true
+          context: terraform
+          path: ./gcp/my-projects
+          filters:
+            branches:
+              only: feature/create-circleci-configuration
+      - terraform/validate:
+          checkout: true
+          context: terraform
+          path: ./gcp/my-projects
+          filters:
+            branches:
+              only: feature/create-circleci-configuration
+          requires:
+            - terraform/fmt
+      - terraform/plan:
+          attach-workspace: true
+          workspace-path: /home/circleci
+          checkout: true
+          context: terraform
+          path: ./gcp/my-projects
+          filters:
+            branches:
+              only: feature/create-circleci-configuration
+          requires:
+            - terraform/validate
+      # - terraform/apply:
+      #     attach-workspace: true
+      #     workspace-path: /home/circleci
+      #     checkout: true
+      #     context: terraform
+      #     path: ./gcp/my-projects/
+      #     filters:
+      #       branches:
+      #         only: master
+      #     requires:
+      #       - terraform/plan
